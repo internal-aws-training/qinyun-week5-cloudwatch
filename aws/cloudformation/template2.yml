@@ -1,0 +1,70 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: AWS CloudWatch training task1
+
+Parameters:
+  LambdaFunctionName:
+    Description: Lambda Function Name
+    Default: put-metric-lambda
+    Type: String
+  SNSTopicName:
+    Default: sns-logs-alarm
+    Type: String
+
+Resources:
+  HelloWorldFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref LambdaFunctionName
+      Handler: index.lambda_handler
+      Role: arn:aws:iam::494526681395:role/for-aws-training
+      Code: 
+        ZipFile: |
+          import boto3
+          cloudwatch = boto3.client('cloudwatch')
+          def lambda_handler(event, handler):
+            print("Hello,World")
+      Runtime: "python3.7"
+      Timeout: 3
+  
+  MetricsLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${LambdaFunctionName}
+      RetentionInDays: 7
+  
+  LambdaInvokeRole:
+    Type: AWS::Lambda::Permission
+    Properties: 
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt PushMetricsFunction.Arn
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TriggerLambdaEvent.Arn
+
+  TriggerLambdaEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: rate(1 minute)
+      Targets:
+        - Arn: !GetAtt HelloWorldFunction.Arn
+          Id: trigger-qinyun-lambda-event
+
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: LambdaLogSNS
+      Subscription:
+      - Endpoint: qinyun.wang@outlook.com
+        Protocol: email
+      TopicName: !Ref SNSTopicName
+
+  MetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterPattern: "Hello"
+      LogGroupName: !Ref MetricsLambdaLogGroup
+      MetricTransformations:
+        - MetricValue: "1"
+          MetricNamespace: "QinyunNameSpace"
+          MetricName: "LogHello"
