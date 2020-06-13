@@ -38,7 +38,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties: 
       Action: lambda:InvokeFunction
-      FunctionName: !GetAtt PushMetricsFunction.Arn
+      FunctionName: !GetAtt HelloWorldFunction.Arn
       Principal: events.amazonaws.com
       SourceArn: !GetAtt TriggerLambdaEvent.Arn
 
@@ -68,3 +68,18 @@ Resources:
         - MetricValue: "1"
           MetricNamespace: "QinyunNameSpace"
           MetricName: "LogHello"
+
+  LogHelloAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+        - !Ref SNSTopic
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      MetricName: LogHello
+      Namespace: QinyunNameSpace
+      OKActions:
+        - !Ref SNSTopic
+      Period: 120
+      EvaluationPeriods: 1
+      Threshold: 1
+      Statistic: Sum
