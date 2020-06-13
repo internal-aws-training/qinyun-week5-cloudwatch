@@ -3,72 +3,73 @@ AWSTemplateFormatVersion: '2010-09-09'
 
 Description: AWS CloudWatch training task1
 
-Resources:
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
-      Path: "/"
-      Policies:
-      - PolicyName: AWSLambdaBasicExecutionRole
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-          - Effect: Allow
-            Action:
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            Resource: arn:aws:logs:*:*:*
+Parameters:
+  LambdaFunctionName:
+    Description: Lambda Function Name
+    Default: put-metric-lambda
+    Type: String
+  SNSTopicName:
+    Default: sns-invoke-alarm
+    Type: String
 
+Resources:
   PushMetricsFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: LambdaFunctionPushMetrics
+      FunctionName: !Ref LambdaFunctionName
       Handler: index.lambda_handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Code: ../../src
+      Role: arn:aws:iam::494526681395:role/for-aws-training
+      Code: 
+        S3Bucket: cz-code-source
+        S3Key: index.py.zip
       Runtime: "python3.7"
       Timeout: 3
+
+  LambdaInvokeRole:
+    Type: AWS::Lambda::Permission
+    Properties: 
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt PushMetricsFunction.Arn
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TriggerLambdaEvent.Arn
 
   TriggerLambdaEvent:
     Type: AWS::Events::Rule
     Properties:
       ScheduleExpression: rate(1 minute)
       Targets:
-        Arn: !GetAtt PushMetricsFunction.Arn
-        Id: LambdaFunctionPushMetrics
-        RoleArn: !GetAtt LambdaExecutionRole.Arn
+        - Arn: !GetAtt PushMetricsFunction.Arn
+          Id: trigger-qinyun-lambda-event
       
   SNSTopic:
     Type: AWS::SNS::Topic
     Properties:
       DisplayName: LambdaInvokes
       Subscription:
-        - Endpoint: oojbjoo@gmail.com
-          Protocol: email
-      TopicName: LambdaInvokesMoreThan5Times
+      - Endpoint: qinyun.wang@outlook.com
+        Protocol: email
+      TopicName: !Ref SNSTopicName
 
   CloudWatchAlarm:
     Type: AWS::CloudWatch::Alarm
+    DependsOn:
+      - SNSTopic
     Properties:
+      AlarmDescription: Lambda invocations
       AlarmName: LambdaInvocationsAlarm
       ActionsEnabled: TRUE
       AlarmActions:
         - !Ref SNSTopic
+      OKActions:
+        - !Ref SNSTopic
       ComparisonOperator: GreaterThanOrEqualToThreshold
       EvaluationPeriods: 1
-      MetricName: Invocations
-      Namespace: AWS/Lambda
-      Threshold: 5
+      MetricName: InvocationTimes
+      Namespace: QinyunNameSpace
+      Threshold: 1
+      Statistic: SampleCount
+      EvaluationPeriods: 1
+      Period: 120
       Dimensions:
-        - Name: Invocations
-        - Value: Times
+        - Name: Invocation
+          Value: Times
